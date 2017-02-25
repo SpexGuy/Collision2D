@@ -170,7 +170,7 @@ int main() {
 
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-    window = glfwCreateWindow(640, 480, "SpexGuy's GLFW Template", NULL, NULL);
+    window = glfwCreateWindow(640, 480, "2D GJK Collision Demo", NULL, NULL);
     if (!window) {
         cout << "Failed to create window" << endl;
         exit(-1);

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.6)
-project(Template)
+project(Colision2D)
 
 message("Source " "${CMAKE_SOURCE_DIR}")
 
@@ -16,11 +16,11 @@ include_directories(${OPENGL_INCLUDE_DIRS})
 include_directories(${INCLUDE})
 
 set(SOURCE_FILES main.cpp gl_includes.h Perf.h Perf.cpp stb_image_impl.cpp)
-add_executable(Template ${SOURCE_FILES})
+add_executable(Colision2D ${SOURCE_FILES})
 
-target_link_libraries(Template ${LIB}/libglew32.a)
-target_link_libraries(Template ${LIB}/libglfw3.a)
-target_link_libraries(Template ${OPENGL_LIBRARIES})
-target_link_libraries(Template -static-libgcc -static-libstdc++)
+target_link_libraries(Colision2D ${LIB}/libglew32.a)
+target_link_libraries(Colision2D ${LIB}/libglfw3.a)
+target_link_libraries(Colision2D ${OPENGL_LIBRARIES})
+target_link_libraries(Colision2D -static-libgcc -static-libstdc++)
 
 file(COPY ${CMAKE_SOURCE_DIR}/assets DESTINATION ${CMAKE_BINARY_DIR}/)

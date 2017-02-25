@@ -7,6 +7,7 @@
 #include <stb/stb_image.h>
 #include "gl_includes.h"
 #include "Perf.h"
+#include "gjk.h"
 
 using namespace std;
 using namespace glm;
@@ -17,25 +18,78 @@ void loadTexture(GLuint texname, const char *filename);
 GLFWwindow *window;
 
 
+const char *vertShader = GLSL(
+    layout(location = 0) uniform vec2 inv;
+
+    layout(location = 0) in vec2 pos;
+
+    void main() {
+        gl_Position = vec4(pos.x * inv.x, pos.y * inv.y, 0.0, 1.0);
+    }
+);
+
+// just make everything white for now.
+const char *fragShader = GLSL(
+    void main() {
+        gl_FragColor = vec4(1.0);
+    }
+);
+
+
+int nVerts = 0;
+
 void setup() {
     glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
     glEnable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
 
-    // TODO
-    // init shaders and other global state
+    PolygonCollider2D line;
+    line.points.emplace_back(-1,0);
+    line.points.emplace_back(-1,3);
+    line.points.emplace_back( 1,2);
+
+    CircleCollider2D circle;
+    circle.center = vec2(0, -1);
+    circle.radius = 1;
+
+    AddCollider2D longCircle;
+    longCircle.a = &line;
+    longCircle.b = &circle;
+
+    vector<vec2> bounds;
+    findBounds(&longCircle, bounds, 0.01);
+
+    GLuint shader = compileShader(vertShader, fragShader);
+    glUseProgram(shader);
+
+    nVerts = bounds.size();
+
+    GLuint vao;
+    glGenVertexArrays(1, &vao);
+    glBindVertexArray(vao);
+
+    GLuint vbo;
+    glGenBuffers(1, &vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vec2) * nVerts, bounds.data(), GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(vec2), 0);
+    checkError();
+
 }
 
 void draw() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    // TODO
-    // draw things
+    glDrawArrays(GL_LINE_LOOP, 0, nVerts);
 }
 
 static void glfw_resize_callback(GLFWwindow *window, int width, int height) {
-    printf("resize: %dx%d\n", width, height);
     glViewport(0, 0, width, height);
+    if (width != 0 && height != 0) {
+        const float scale = 128.f;
+        glUniform2f(0, scale / width, scale / height);
+    }
 }
 
 static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {

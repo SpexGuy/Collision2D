@@ -95,7 +95,7 @@ bool intersects(Collider2D *a, Collider2D *b, vector<vec2> &points) {
         vec2 bcOut = vec2(bc.y, -bc.x);
         if (dot(bcOut, surfC) > 0) {
             vec2 ca = surfA - surfC;
-            vec2 caOut = vec2(surfA.y, -surfA.x);
+            vec2 caOut = vec2(ca.y, -ca.x);
             if (dot(caOut, surfC) > 0) {
                 return true; // inside triangle! Collision!
             } else {

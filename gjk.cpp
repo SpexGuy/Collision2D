@@ -11,6 +11,10 @@ vec2 AddCollider2D::findSupport(vec2 direction) {
     return a->findSupport(direction) + b->findSupport(direction);
 }
 
+glm::vec2 SubCollider2D::findSupport(glm::vec2 direction) {
+    return a->findSupport(direction) - b->findSupport(-direction);
+}
+
 vec2 CircleCollider2D::findSupport(vec2 direction) {
     return center + radius * normalize(direction);
 }
@@ -60,6 +64,47 @@ void findBounds(Collider2D *collider, vector<vec2> &bounds, float epsilon) {
     findBounds(collider, bottom, top, bounds, epsilon);
 }
 
-bool intersects(Collider2D *a, Collider2D *b) {
-    return false;
+bool intersects(Collider2D *a, Collider2D *b, vector<vec2> &points) {
+    SubCollider2D combined;
+    combined.a = a;
+    combined.b = b;
+
+    vec2 surfA = combined.findSupport(vec2(0,1));
+    if (surfA.y < 0) return false;
+
+    vec2 surfB = combined.findSupport(-surfA);
+    if (dot(-surfA, surfB) < 0) return false;
+
+    vec2 ab = surfB - surfA;
+    vec2 out = vec2(ab.y, -ab.x);
+    if (dot(out, surfB) < 0) {
+        swap(surfA, surfB); // ensure ccw winding
+    } else {
+        out = -out;
+    }
+
+    do {
+        vec2 surfC = combined.findSupport(out);
+        if (dot(out, surfC) <= 0) return false;
+
+        points.push_back(surfA);
+        points.push_back(surfB);
+        points.push_back(surfC);
+
+        vec2 bc = surfC - surfB;
+        vec2 bcOut = vec2(bc.y, -bc.x);
+        if (dot(bcOut, surfC) > 0) {
+            vec2 ca = surfA - surfC;
+            vec2 caOut = vec2(surfA.y, -surfA.x);
+            if (dot(caOut, surfC) > 0) {
+                return true; // inside triangle! Collision!
+            } else {
+                out = caOut;
+                surfB = surfC;
+            }
+        } else {
+            out = bcOut;
+            surfA = surfC;
+        }
+    } while (true);
 }

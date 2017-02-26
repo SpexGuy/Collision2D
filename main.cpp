@@ -17,6 +17,8 @@ void loadTexture(GLuint texname, const char *filename);
 
 GLFWwindow *window;
 
+const float scale = 128.f;
+
 
 const char *vertShader = GLSL(
     layout(location = 0) uniform vec2 inv;
@@ -30,31 +32,43 @@ const char *vertShader = GLSL(
 
 // just make everything white for now.
 const char *fragShader = GLSL(
+    layout(location = 1) uniform bool collision;
     void main() {
-        gl_FragColor = vec4(1.0);
+        gl_FragColor = collision ? vec4(1.0,0,0,1.0) : vec4(1.0);
     }
 );
 
 
 int nVerts = 0;
 
+PolygonCollider2D line;
+CircleCollider2D circle;
+AddCollider2D longCircle;
+
+PolygonCollider2D cursorPos;
+
+GLuint baseBuffer;
+GLuint debugBuffer;
+
+bool colliding = false;
+vector<vec2> debugTris;
+
 void setup() {
     glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
     glEnable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
 
-    PolygonCollider2D line;
     line.points.emplace_back(-1,0);
     line.points.emplace_back(-1,3);
     line.points.emplace_back( 1,2);
 
-    CircleCollider2D circle;
     circle.center = vec2(0, -1);
     circle.radius = 1;
 
-    AddCollider2D longCircle;
     longCircle.a = &line;
     longCircle.b = &circle;
+
+    cursorPos.points.emplace_back();
 
     vector<vec2> bounds;
     findBounds(&longCircle, bounds, 0.01);
@@ -68,10 +82,14 @@ void setup() {
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
 
-    GLuint vbo;
-    glGenBuffers(1, &vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glGenBuffers(1, &baseBuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, baseBuffer);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vec2) * nVerts, bounds.data(), GL_STATIC_DRAW);
+    checkError();
+
+    glGenBuffers(1, &debugBuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, debugBuffer);
+    glBufferData(GL_ARRAY_BUFFER, 0, debugTris.data(), GL_STREAM_DRAW);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(vec2), 0);
     checkError();
@@ -81,7 +99,18 @@ void setup() {
 void draw() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+    glBindBuffer(GL_ARRAY_BUFFER, baseBuffer);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(vec2), 0);
     glDrawArrays(GL_LINE_LOOP, 0, nVerts);
+    checkError();
+
+    glBindBuffer(GL_ARRAY_BUFFER, debugBuffer);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(vec2), 0);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vec2) * debugTris.size(), debugTris.data(), GL_STREAM_DRAW);
+    glDrawArrays(GL_TRIANGLES, 0, debugTris.size());
+    checkError();
 }
 
 static void glfw_resize_callback(GLFWwindow *window, int width, int height) {
@@ -110,8 +139,41 @@ static void glfw_click_callback(GLFWwindow *window, int button, int action, int 
     double x, y;
     glfwGetCursorPos(window, &x, &y);
 
-    // TODO
-    // mouse clicks
+    int sw, sh;
+    glfwGetWindowSize(window, &sw, &sh);
+
+    float cx = 2 * (float(x) - float(sw) / 2) / scale;
+    float cy = 2 * -(float(y) - float(sh) / 2) / scale;
+
+    cursorPos.points.back() = vec2(cx, cy);
+
+    debugTris.clear();
+    colliding = intersects(&longCircle, &cursorPos, debugTris);
+
+    for (vec2 &pt : debugTris) {
+        pt.x += cx;
+        pt.y += cy;
+    }
+}
+
+static void glfw_mouse_move_callback(GLFWwindow *window, double x, double y) {
+    int sw, sh;
+    glfwGetWindowSize(window, &sw, &sh);
+
+    float cx = 2 * (float(x) - float(sw) / 2) / scale;
+    float cy = 2 * -(float(y) - float(sh) / 2) / scale;
+
+    cursorPos.points.back() = vec2(cx, cy);
+
+    debugTris.clear();
+    colliding = intersects(&longCircle, &cursorPos, debugTris);
+
+    for (vec2 &pt : debugTris) {
+        pt.x += cx;
+        pt.y += cy;
+    }
+
+    glUniform1i(1, colliding);
 }
 
 void glfw_error_callback(int error, const char* description) {
@@ -231,6 +293,7 @@ int main() {
     }
     glfwSetKeyCallback(window, glfw_key_callback);
     glfwSetMouseButtonCallback(window, glfw_click_callback);
+    glfwSetCursorPosCallback(window, glfw_mouse_move_callback);
 
     glfwMakeContextCurrent(window);
     glewInit();

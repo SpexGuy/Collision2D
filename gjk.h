@@ -18,6 +18,12 @@ struct AddCollider2D : public Collider2D {
     glm::vec2 findSupport(glm::vec2 direction) override;
 };
 
+struct SubCollider2D : public Collider2D {
+    Collider2D *a;
+    Collider2D *b;
+    glm::vec2 findSupport(glm::vec2 direction) override;
+};
+
 struct PolygonCollider2D : public Collider2D {
     std::vector<glm::vec2> points;
     glm::vec2 findSupport(glm::vec2 direction) override;
@@ -31,6 +37,6 @@ struct CircleCollider2D : public Collider2D {
 
 void findBounds(Collider2D *collider, std::vector<glm::vec2> &bounds, float epsilon);
 
-bool intersects(Collider2D *a, Collider2D *b);
+bool intersects(Collider2D *a, Collider2D *b, std::vector<glm::vec2> &points);
 
 #endif //COLISION2D_GJK_H

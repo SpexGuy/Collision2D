@@ -51,12 +51,16 @@ GLuint baseBuffer;
 GLuint debugBuffer;
 
 bool colliding = false;
-vector<vec2> debugTris;
+vector<vec2> debugTris; // first bounds of combined collider, then triangles in gjk
+int debugBoundsSize = 0; // number of points in bounds
+int debugTrigsSize = 0; // number of points in triangles
 
 void setup() {
     glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
     glEnable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // default to wireframe. w to switch.
+
 
     line.points.emplace_back(-1,0);
     line.points.emplace_back(-1,3);
@@ -96,20 +100,25 @@ void setup() {
 
 }
 
+void bindVec2Buffer(GLuint buffer) {
+    glBindBuffer(GL_ARRAY_BUFFER, buffer);
+
+    // Position at location 0
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(vec2), 0);
+}
+
 void draw() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    glBindBuffer(GL_ARRAY_BUFFER, baseBuffer);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(vec2), 0);
+    bindVec2Buffer(baseBuffer);
     glDrawArrays(GL_LINE_LOOP, 0, nVerts);
     checkError();
 
-    glBindBuffer(GL_ARRAY_BUFFER, debugBuffer);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(vec2), 0);
+    bindVec2Buffer(debugBuffer);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vec2) * debugTris.size(), debugTris.data(), GL_STREAM_DRAW);
-    glDrawArrays(GL_TRIANGLES, 0, debugTris.size());
+    glDrawArrays(GL_LINE_LOOP, 0, debugBoundsSize);
+    glDrawArrays(GL_TRIANGLES, debugBoundsSize, debugTrigsSize);
     checkError();
 }
 
@@ -127,7 +136,7 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
     if (key == GLFW_KEY_ESCAPE) {
         glfwSetWindowShouldClose(window, true);
     } else if (key == GLFW_KEY_W) {
-        static bool wireframe = false;
+        static bool wireframe = true;
         wireframe = !wireframe;
         glPolygonMode(GL_FRONT_AND_BACK, wireframe ? GL_LINE : GL_FILL);
     }
@@ -145,15 +154,7 @@ static void glfw_click_callback(GLFWwindow *window, int button, int action, int 
     float cx = 2 * (float(x) - float(sw) / 2) / scale;
     float cy = 2 * -(float(y) - float(sh) / 2) / scale;
 
-    cursorPos.points.back() = vec2(cx, cy);
-
-    debugTris.clear();
-    colliding = intersects(&longCircle, &cursorPos, debugTris);
-
-    for (vec2 &pt : debugTris) {
-        pt.x += cx;
-        pt.y += cy;
-    }
+    printf("Mouse at (%f,%f)\n", cx, cy);
 }
 
 static void glfw_mouse_move_callback(GLFWwindow *window, double x, double y) {
@@ -165,13 +166,15 @@ static void glfw_mouse_move_callback(GLFWwindow *window, double x, double y) {
 
     cursorPos.points.back() = vec2(cx, cy);
 
-    debugTris.clear();
-    colliding = intersects(&longCircle, &cursorPos, debugTris);
+    SubCollider2D combined;
+    combined.a = &longCircle;
+    combined.b = &cursorPos;
 
-    for (vec2 &pt : debugTris) {
-        pt.x += cx;
-        pt.y += cy;
-    }
+    debugTris.clear();
+    findBounds(&combined, debugTris, 0.01);
+    debugBoundsSize = debugTris.size();
+    colliding = containsOrigin(combined, debugTris);
+    debugTrigsSize = debugTris.size() - debugBoundsSize;
 
     glUniform1i(1, colliding);
 }

@@ -39,4 +39,6 @@ void findBounds(Collider2D *collider, std::vector<glm::vec2> &bounds, float epsi
 
 bool intersects(Collider2D *a, Collider2D *b, std::vector<glm::vec2> &points);
 
+bool containsOrigin(SubCollider2D collider, std::vector<glm::vec2> &points);
+
 #endif //COLISION2D_GJK_H

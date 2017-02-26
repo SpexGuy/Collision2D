@@ -3,6 +3,7 @@
 //
 
 #include "gjk.h"
+#include "Perf.h"
 
 using namespace glm;
 using namespace std;
@@ -68,12 +69,16 @@ bool intersects(Collider2D *a, Collider2D *b, vector<vec2> &points) {
     SubCollider2D combined;
     combined.a = a;
     combined.b = b;
+    return containsOrigin(combined, points);
+}
 
+bool containsOrigin(SubCollider2D combined, vector<vec2> &points) {
+    Perf stat("GJK");
     vec2 surfA = combined.findSupport(vec2(0,1));
-    if (surfA.y < 0) return false;
+    if (surfA.y <= 0) return false;
 
     vec2 surfB = combined.findSupport(-surfA);
-    if (dot(-surfA, surfB) < 0) return false;
+    if (dot(-surfA, surfB) <= 0) return false;
 
     vec2 ab = surfB - surfA;
     vec2 out = vec2(ab.y, -ab.x);

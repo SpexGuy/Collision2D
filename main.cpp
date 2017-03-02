@@ -22,35 +22,40 @@ const float scale = 128.f;
 
 const char *vertShader = GLSL(
     layout(location = 0) uniform vec2 inv;
+    layout(location = 2) uniform vec2 offset;
 
     layout(location = 0) in vec2 pos;
 
     void main() {
-        gl_Position = vec4(pos.x * inv.x, pos.y * inv.y, 0.0, 1.0);
+        gl_Position = vec4((pos + offset) * inv, 0.0, 1.0);
     }
 );
 
-// just make everything white for now.
 const char *fragShader = GLSL(
-    layout(location = 1) uniform bool collision;
+    layout(location = 1) uniform vec3 color;
     void main() {
-        gl_FragColor = collision ? vec4(1.0,0,0,1.0) : vec4(1.0);
+        gl_FragColor = vec4(color,1.0);
     }
 );
 
 
-int nVerts = 0;
+int backStart = 0;
+int backSize = 0;
+int cursorStart = 0;
+int cursorSize = 0;
 
 PolygonCollider2D line;
 CircleCollider2D circle;
 AddCollider2D longCircle;
 
 PolygonCollider2D cursorPos;
+PolygonCollider2D cursorTriangle;
+AddCollider2D cursorCombined;
 
-GLuint baseBuffer;
+GLuint staticBuffer;
 GLuint debugBuffer;
 
-bool colliding = false;
+bool colliding = true; // shapes start out colliding.
 vector<vec2> debugTris; // first bounds of combined collider, then triangles in gjk
 int debugBoundsSize = 0; // number of points in bounds
 int debugTrigsSize = 0; // number of points in triangles
@@ -72,23 +77,42 @@ void setup() {
     longCircle.a = &line;
     longCircle.b = &circle;
 
+    cursorTriangle.points.emplace_back(0.5,0.5);
+    cursorTriangle.points.emplace_back(-0.2,0.2);
+    cursorTriangle.points.emplace_back(0.2,-0.2);
+    cursorTriangle.points.emplace_back(-0.5,-0.5);
+
     cursorPos.points.emplace_back();
 
+    cursorCombined.a = &cursorTriangle;
+    cursorCombined.b = &cursorPos;
+
     vector<vec2> bounds;
+
+    bounds.emplace_back( 0.25, 0.25);
+    bounds.emplace_back(-0.25,-0.25);
+    bounds.emplace_back(-0.25, 0.25);
+    bounds.emplace_back( 0.25,-0.25);
+
+    backStart = bounds.size();
     findBounds(&longCircle, bounds, 0.01);
+    backSize = bounds.size() - backStart;
+
+    cursorStart = bounds.size();
+    findBounds(&cursorTriangle, bounds, 0.01);
+    cursorSize = bounds.size() - cursorStart;
 
     GLuint shader = compileShader(vertShader, fragShader);
     glUseProgram(shader);
 
-    nVerts = bounds.size();
 
     GLuint vao;
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
 
-    glGenBuffers(1, &baseBuffer);
-    glBindBuffer(GL_ARRAY_BUFFER, baseBuffer);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vec2) * nVerts, bounds.data(), GL_STATIC_DRAW);
+    glGenBuffers(1, &staticBuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, staticBuffer);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vec2) * bounds.size(), bounds.data(), GL_STATIC_DRAW);
     checkError();
 
     glGenBuffers(1, &debugBuffer);
@@ -111,8 +135,16 @@ void bindVec2Buffer(GLuint buffer) {
 void draw() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    bindVec2Buffer(baseBuffer);
-    glDrawArrays(GL_LINE_LOOP, 0, nVerts);
+    bindVec2Buffer(staticBuffer);
+    glUniform3f(1, 0,1,1);
+    glDrawArrays(GL_LINES, 0, backStart);
+    float gb = colliding ? 0 : 1;
+    glUniform3f(1, 1,gb,gb);
+    glDrawArrays(GL_LINE_LOOP, backStart, backSize);
+    vec2 cpos = cursorPos.points.back();
+    glUniform2f(2, cpos.x, cpos.y);
+    glDrawArrays(GL_LINE_LOOP, cursorStart, cursorSize);
+    glUniform2f(2, 0, 0);
     checkError();
 
     bindVec2Buffer(debugBuffer);
@@ -168,15 +200,13 @@ static void glfw_mouse_move_callback(GLFWwindow *window, double x, double y) {
 
     SubCollider2D combined;
     combined.a = &longCircle;
-    combined.b = &cursorPos;
+    combined.b = &cursorCombined;
 
     debugTris.clear();
     findBounds(&combined, debugTris, 0.01);
     debugBoundsSize = debugTris.size();
     colliding = containsOrigin(combined, debugTris);
     debugTrigsSize = debugTris.size() - debugBoundsSize;
-
-    glUniform1i(1, colliding);
 }
 
 void glfw_error_callback(int error, const char* description) {

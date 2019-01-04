@@ -19,12 +19,11 @@ GLFWwindow *window;
 
 const float scale = 128.f;
 
-
 const char *vertShader = GLSL(
-    layout(location = 0) uniform vec2 inv;
-    layout(location = 2) uniform vec2 offset;
+    uniform vec2 inv;
+    uniform vec2 offset;
 
-    layout(location = 0) in vec2 pos;
+    in vec2 pos;
 
     void main() {
         gl_Position = vec4((pos + offset) * inv, 0.0, 1.0);
@@ -32,11 +31,19 @@ const char *vertShader = GLSL(
 );
 
 const char *fragShader = GLSL(
-    layout(location = 1) uniform vec3 color;
+    uniform vec3 color;
+
+    out vec4 FragColor;
+
     void main() {
-        gl_FragColor = vec4(color,1.0);
+        FragColor = vec4(color,1.0);
     }
 );
+
+int a_pos;
+int u_inv;
+int u_offset;
+int u_color;
 
 
 int backStart = 0;
@@ -104,7 +111,10 @@ void setup() {
 
     GLuint shader = compileShader(vertShader, fragShader);
     glUseProgram(shader);
-
+    u_inv = glGetUniformLocation(shader, "inv");
+    u_color = glGetUniformLocation(shader, "color");
+    u_offset = glGetUniformLocation(shader, "offset");
+    a_pos = glGetAttribLocation(shader, "pos");
 
     GLuint vao;
     glGenVertexArrays(1, &vao);
@@ -118,8 +128,8 @@ void setup() {
     glGenBuffers(1, &debugBuffer);
     glBindBuffer(GL_ARRAY_BUFFER, debugBuffer);
     glBufferData(GL_ARRAY_BUFFER, 0, debugTris.data(), GL_STREAM_DRAW);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(vec2), 0);
+    glEnableVertexAttribArray(a_pos);
+    glVertexAttribPointer(a_pos, 2, GL_FLOAT, GL_FALSE, sizeof(vec2), 0);
     checkError();
 
 }
@@ -127,24 +137,23 @@ void setup() {
 void bindVec2Buffer(GLuint buffer) {
     glBindBuffer(GL_ARRAY_BUFFER, buffer);
 
-    // Position at location 0
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(vec2), 0);
+    glEnableVertexAttribArray(a_pos);
+    glVertexAttribPointer(a_pos, 2, GL_FLOAT, GL_FALSE, sizeof(vec2), 0);
 }
 
 void draw() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     bindVec2Buffer(staticBuffer);
-    glUniform3f(1, 0,1,1);
+    glUniform3f(u_color, 0,1,1);
     glDrawArrays(GL_LINES, 0, backStart);
     float gb = colliding ? 0 : 1;
-    glUniform3f(1, 1,gb,gb);
+    glUniform3f(u_color, 1,gb,gb);
     glDrawArrays(GL_LINE_LOOP, backStart, backSize);
     vec2 cpos = cursorPos.points.back();
-    glUniform2f(2, cpos.x, cpos.y);
+    glUniform2f(u_offset, cpos.x, cpos.y);
     glDrawArrays(GL_LINE_LOOP, cursorStart, cursorSize);
-    glUniform2f(2, 0, 0);
+    glUniform2f(u_offset, 0, 0);
     checkError();
 
     bindVec2Buffer(debugBuffer);
@@ -154,11 +163,13 @@ void draw() {
     checkError();
 }
 
-static void glfw_resize_callback(GLFWwindow *window, int width, int height) {
+static void glfw_resize_backbuffer_callback(GLFWwindow *window, int width, int height) {
     glViewport(0, 0, width, height);
+}
+
+static void glfw_resize_window_callback(GLFWwindow *window, int width, int height) {
     if (width != 0 && height != 0) {
-        const float scale = 128.f;
-        glUniform2f(0, scale / width, scale / height);
+        glUniform2f(u_inv, scale / width, scale / height);
     }
 }
 
@@ -192,6 +203,8 @@ static void glfw_click_callback(GLFWwindow *window, int button, int action, int 
 static void glfw_mouse_move_callback(GLFWwindow *window, double x, double y) {
     int sw, sh;
     glfwGetWindowSize(window, &sw, &sh);
+    int fw, fh;
+    glfwGetFramebufferSize(window, &fw, &fh);
 
     float cx = 2 * (float(x) - float(sw) / 2) / scale;
     float cy = 2 * -(float(y) - float(sh) / 2) / scale;
@@ -319,6 +332,10 @@ int main() {
 
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+#ifdef APPLE
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+#endif
     window = glfwCreateWindow(640, 480, "2D GJK Collision Demo", NULL, NULL);
     if (!window) {
         cout << "Failed to create window" << endl;
@@ -338,10 +355,13 @@ int main() {
     setup();
     checkError();
 
-    glfwSetFramebufferSizeCallback(window, glfw_resize_callback); // do this after setup
+    glfwSetFramebufferSizeCallback(window, glfw_resize_backbuffer_callback); // do this after setup
+    glfwSetWindowSizeCallback(window, glfw_resize_window_callback); // do this after setup
     int width, height;
+    glfwGetFramebufferSize(window, &width, &height);
+    glfw_resize_backbuffer_callback(window, width, height); // call resize once with the initial size
     glfwGetWindowSize(window, &width, &height);
-    glfw_resize_callback(window, width, height); // call resize once with the initial size
+    glfw_resize_window_callback(window, width, height); // call resize once with the initial size
 
     // make sure performance data is clean going into main loop
     markPerformanceFrame();

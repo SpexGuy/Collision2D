@@ -2,9 +2,10 @@
 // Created by Martin Wickham on 10/25/2016.
 //
 
-#ifndef STUPIDSHTRICKS_PERF_H
-#define STUPIDSHTRICKS_PERF_H
+#ifndef COLLISION2D_PERF_H
+#define COLLISION2D_PERF_H
 
+#ifdef PERF
 
 #include <afxres.h>
 
@@ -26,13 +27,23 @@ public:
     }
 
     ~Perf() {
-#ifdef PERF
         LARGE_INTEGER endTime;
         QueryPerformanceCounter(&endTime);
         recordPerformanceData(name, endTime.QuadPart - startTime.QuadPart);
-#endif
     }
 };
 
+#else
 
-#endif //STUPIDSHTRICKS_PERF_H
+static inline void initPerformanceData() {}
+static inline void printPerformanceData() {}
+static inline void recordPerformanceData(const char *name, const long long timeElapsed) {}
+static inline void markPerformanceFrame() {}
+
+struct Perf {
+  Perf(const char *name) {}
+};
+
+#endif //PERF
+
+#endif //COLLISION2D_PERF_H
